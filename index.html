@@ -104,7 +104,7 @@
 
 <script>
   // Set this to your deployed Apps Script web app URL later
-  const API_URL = "https://script.google.com/macros/s/AKfycby4xIIgl7Wqmo3mPGJ3VU5shPZBJipT0sT4h4p4YYjHjzMvnT1Z8PMJQCL73rU1xIcr/exec";
+  const API_URL = "https://script.google.com/macros/s/AKfycbwmg98qCbqjv2DPjmCYlknG4X-788JERNQpYX66rMOX6PXxKN-sLsTwxiwXpCmFTY9F/exec";
 
   // Keep track of scanned barcodes
   const scannedBarcodes = new Set();
@@ -195,7 +195,7 @@
     try {
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 14, qrbox: 450 },
+        { fps: 14, qrbox: Math.min(300, window.innerWidth * 0.7) },
         onScanSuccess
       );
       isCameraRunning = true;
