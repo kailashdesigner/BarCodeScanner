@@ -195,7 +195,7 @@
     try {
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 14, qrbox: Math.min(300, window.innerWidth * 0.7) },
+        { fps: 14, qrbox: Math.min(500, window.innerWidth * 0.9) },
         onScanSuccess
       );
       isCameraRunning = true;
@@ -234,4 +234,5 @@
 
 </body>
 </html>
+
 
