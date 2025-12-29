@@ -12,16 +12,14 @@
     }
     #result {
       margin-top: 16px;
-      padding: 12px 18px;
+      padding: 18px 10px;
       background-color: #28a745;
       color: #ffffff;
       font-weight: bold;
       border-radius: 6px;
-      min-height: 28px;
       display: inline-block;
-      font-size: 18px;
-      min-width: 70vw;
-      max-width: 90vw;
+      font-size: 22px;
+      max-width: 98%;
       box-sizing: border-box;
     }
   </style>
@@ -90,10 +88,11 @@ function onScanSuccess(decodedText) {
 const html5QrCode = new Html5Qrcode("reader");
 html5QrCode.start(
   { facingMode: "environment" },
-  { fps: 10, qrbox: 350 },
+  { fps: 12, qrbox: 400 },
   onScanSuccess
 );
 </script>
 
 </body>
 </html>
+
