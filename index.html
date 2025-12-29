@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Barcode Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 10px; }
+    #reader { width: 300px; margin: auto; }
+  </style>
+</head>
+<body>
+
+<h2>📦 Barcode Scanner</h2>
+<div id="reader"></div>
+<p id="result"></p>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbx3Uh1ebg5iwB7mqLsrXqmIzCMvosD4q178cjvmMoRTqe3OOfZK84xjOzBSEwHg99Tm/exec";
+
+function onScanSuccess(decodedText) {
+  document.getElementById("result").innerText = "Scanned: " + decodedText;
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      barcode: decodedText,
+      device: navigator.userAgent
+    })
+  });
+
+  html5QrCode.stop();
+}
+
+const html5QrCode = new Html5Qrcode("reader");
+html5QrCode.start(
+  { facingMode: "environment" },
+  { fps: 10, qrbox: 250 },
+  onScanSuccess
+);
+</script>
+
+</body>
+</html>
