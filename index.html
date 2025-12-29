@@ -4,13 +4,19 @@
   <title>Barcode Scanner</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 10px;
+    }
+
     #reader {
       width: 95vw;
       max-width: 700px;
       margin: 16px auto;
       display: none; /* hidden until camera opened */
     }
+
     #result {
       margin-top: 16px;
       padding: 12px 18px;
@@ -24,12 +30,15 @@
       max-width: 95vw;
       box-sizing: border-box;
     }
+
     #result:empty {
       display: none;
     }
+
     #controls {
       margin-top: 12px;
     }
+
     #openCameraBtn,
     #closeCameraBtn {
       padding: 10px 18px;
@@ -39,139 +48,188 @@
       border: none;
       cursor: pointer;
     }
+
     #openCameraBtn {
       background-color: #007bff;
       color: #ffffff;
     }
+
     #closeCameraBtn {
       background-color: #6c757d;
       color: #ffffff;
       display: none; /* hidden until camera is open */
+    }
+
+    /* Mobile-first sheet selector */
+    #sheetSelector {
+      margin-top: 10px;
+      font-size: 16px;
+    }
+
+    #sheetSelector label {
+      margin: 0 8px;
+      display: inline-block;
+    }
+
+    #sheetSelector input[type="radio"] {
+      transform: scale(1.2);
+      margin-right: 4px;
     }
   </style>
 </head>
 <body>
 
 <h2>📦 Barcode Scanner</h2>
+
 <div id="controls">
   <button id="openCameraBtn">Open Camera</button>
   <button id="closeCameraBtn">Close Camera</button>
 </div>
+
+<!-- NEW: simple target-sheet selector -->
+<div id="sheetSelector">
+  <span>Save to:</span>
+  <label>
+    <input type="radio" name="sheetTarget" value="Flipkart" checked>
+    Flipkart
+  </label>
+  <label>
+    <input type="radio" name="sheetTarget" value="Meesho">
+    Meesho
+  </label>
+</div>
+
 <div id="reader"></div>
 <p id="result"></p>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbx3Uh1ebg5iwB7mqLsrXqmIzCMvosD4q178cjvmMoRTqe3OOfZK84xjOzBSEwHg99Tm/exec";
+  // Set this to your deployed Apps Script web app URL later
+  const API_URL = "https://script.google.com/macros/s/AKfycbwyPjdXnQ2MIdTT59NL2pLcI29FgDNs5g4g0tqiVkZpFK2u67H3la3ZkKq3Zkvjv2K4/exec";
 
-// Keep track of scanned barcodes
-const scannedBarcodes = new Set();
+  // Keep track of scanned barcodes
+  const scannedBarcodes = new Set();
 
-// Html5Qrcode instance (created on demand)
-let html5QrCode = null;
-let isCameraRunning = false;
+  // Html5Qrcode instance (created on demand)
+  let html5QrCode = null;
+  let isCameraRunning = false;
 
-// Simple beep using Web Audio API so no external file is needed
-function playBeep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
+  // Simple beep using Web Audio API so no external file is needed
+  function playBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
 
-    osc.type = "sine";
-    osc.frequency.value = 1000; // Hz
+      osc.type = "sine";
+      osc.frequency.value = 1000; // Hz
 
-    osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
 
-    gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
 
-    osc.start();
-    osc.stop(ctx.currentTime + 0.15);
-  } catch (e) {
-    // If audio fails, just ignore
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {
+      // If audio fails, just ignore
+    }
   }
-}
 
-function onScanSuccess(decodedText) {
-  const resultEl = document.getElementById("result");
+  // Helper: get currently selected sheet name (Flipkart / Meesho)
+  function getSelectedSheet() {
+    const selected = document.querySelector('input[name="sheetTarget"]:checked');
+    // Default to Flipkart if nothing is selected for any reason
+    return selected ? selected.value : "Flipkart";
+  }
 
-  if (scannedBarcodes.has(decodedText)) {
-    resultEl.innerText = "Already scanned: " + decodedText;
-    resultEl.style.backgroundColor = "#dc3545"; // red for duplicate
+  function onScanSuccess(decodedText) {
+    const resultEl = document.getElementById("result");
+
+    // duplicate detection (unchanged)
+    if (scannedBarcodes.has(decodedText)) {
+      resultEl.innerText = "Already scanned: " + decodedText;
+      resultEl.style.backgroundColor = "#dc3545"; // red for duplicate
+      playBeep();
+      return;
+    }
+
+    scannedBarcodes.add(decodedText);
+
+    resultEl.innerText = "Scanned: " + decodedText;
+    resultEl.style.backgroundColor = "#28a745"; // green for new scan
+
     playBeep();
-    return;
-  }
 
-  scannedBarcodes.add(decodedText);
-
-  resultEl.innerText = "Scanned: " + decodedText;
-  resultEl.style.backgroundColor = "#28a745"; // green for new scan
-
-  playBeep();
-
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
+    // Minimal payload: barcode + selected sheet name only
+    const payload = {
       barcode: decodedText,
-      device: navigator.userAgent
-    })
-  });
-}
+      sheet: getSelectedSheet()
+    };
 
-async function openCamera() {
-  if (isCameraRunning) return;
-
-  const readerEl = document.getElementById("reader");
-  const openBtn = document.getElementById("openCameraBtn");
-  const closeBtn = document.getElementById("closeCameraBtn");
-
-  readerEl.style.display = "block";
-  openBtn.style.display = "none";
-  closeBtn.style.display = "inline-block";
-
-  if (!html5QrCode) {
-    html5QrCode = new Html5Qrcode("reader");
+    fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+      // No headers needed; Apps Script can parse raw JSON body
+    }).catch(function (err) {
+      // Fail silently on network issues to keep UX simple on mobile
+      console.error("Failed to send to Apps Script:", err);
+    });
   }
 
-  try {
-    await html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 14, qrbox: 450 },
-      onScanSuccess
-    );
-    isCameraRunning = true;
-  } catch (err) {
-    // If camera fails, reset UI
-    readerEl.style.display = "none";
-    openBtn.style.display = "inline-block";
-    closeBtn.style.display = "none";
+  async function openCamera() {
+    if (isCameraRunning) return;
+
+    const readerEl = document.getElementById("reader");
+    const openBtn = document.getElementById("openCameraBtn");
+    const closeBtn = document.getElementById("closeCameraBtn");
+
+    readerEl.style.display = "block";
+    openBtn.style.display = "none";
+    closeBtn.style.display = "inline-block";
+
+    if (!html5QrCode) {
+      html5QrCode = new Html5Qrcode("reader");
+    }
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 14, qrbox: 450 },
+        onScanSuccess
+      );
+      isCameraRunning = true;
+    } catch (err) {
+      // If camera fails, reset UI
+      readerEl.style.display = "none";
+      openBtn.style.display = "inline-block";
+      closeBtn.style.display = "none";
+      isCameraRunning = false;
+      alert("Unable to open camera: " + err);
+    }
+  }
+
+  async function closeCamera() {
+    if (!html5QrCode || !isCameraRunning) return;
+
+    const readerEl = document.getElementById("reader");
+    const openBtn = document.getElementById("openCameraBtn");
+    const closeBtn = document.getElementById("closeCameraBtn");
+
+    try {
+      await html5QrCode.stop();
+    } catch (err) {
+      // ignore stop errors
+    }
+
     isCameraRunning = false;
-    alert("Unable to open camera: " + err);
-  }
-}
-
-async function closeCamera() {
-  if (!html5QrCode || !isCameraRunning) return;
-
-  const readerEl = document.getElementById("reader");
-  const openBtn = document.getElementById("openCameraBtn");
-  const closeBtn = document.getElementById("closeCameraBtn");
-
-  try {
-    await html5QrCode.stop();
-  } catch (err) {
-    // ignore stop errors
+    readerEl.style.display = "none";
+    closeBtn.style.display = "none";
+    openBtn.style.display = "inline-block";
   }
 
-  isCameraRunning = false;
-  readerEl.style.display = "none";
-  closeBtn.style.display = "none";
-  openBtn.style.display = "inline-block";
-}
-
-document.getElementById("openCameraBtn").addEventListener("click", openCamera);
-document.getElementById("closeCameraBtn").addEventListener("click", closeCamera);
+  document.getElementById("openCameraBtn").addEventListener("click", openCamera);
+  document.getElementById("closeCameraBtn").addEventListener("click", closeCamera);
 </script>
 
 </body>
