@@ -6,27 +6,57 @@
   <style>
     body { font-family: Arial, sans-serif; text-align: center; padding: 10px; }
     #reader {
-      width: 90vw;
+      width: 95vw;
       max-width: 700px;
       margin: 16px auto;
+      display: none; /* hidden until camera opened */
     }
     #result {
       margin-top: 16px;
-      padding: 18px 10px;
+      padding: 12px 18px;
       background-color: #28a745;
       color: #ffffff;
       font-weight: bold;
       border-radius: 6px;
+      min-height: 28px;
       display: inline-block;
-      font-size: 22px;
-      max-width: 98%;
+      font-size: 24px;
+      max-width: 95vw;
       box-sizing: border-box;
+    }
+    #result:empty {
+      display: none;
+    }
+    #controls {
+      margin-top: 12px;
+    }
+    #openCameraBtn,
+    #closeCameraBtn {
+      padding: 10px 18px;
+      margin: 4px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+    #openCameraBtn {
+      background-color: #007bff;
+      color: #ffffff;
+    }
+    #closeCameraBtn {
+      background-color: #6c757d;
+      color: #ffffff;
+      display: none; /* hidden until camera is open */
     }
   </style>
 </head>
 <body>
 
 <h2>📦 Barcode Scanner</h2>
+<div id="controls">
+  <button id="openCameraBtn">Open Camera</button>
+  <button id="closeCameraBtn">Close Camera</button>
+</div>
 <div id="reader"></div>
 <p id="result"></p>
 
@@ -35,6 +65,10 @@ const API_URL = "https://script.google.com/macros/s/AKfycbx3Uh1ebg5iwB7mqLsrXqmI
 
 // Keep track of scanned barcodes
 const scannedBarcodes = new Set();
+
+// Html5Qrcode instance (created on demand)
+let html5QrCode = null;
+let isCameraRunning = false;
 
 // Simple beep using Web Audio API so no external file is needed
 function playBeep() {
@@ -85,14 +119,60 @@ function onScanSuccess(decodedText) {
   });
 }
 
-const html5QrCode = new Html5Qrcode("reader");
-html5QrCode.start(
-  { facingMode: "environment" },
-  { fps: 12, qrbox: 400 },
-  onScanSuccess
-);
+async function openCamera() {
+  if (isCameraRunning) return;
+
+  const readerEl = document.getElementById("reader");
+  const openBtn = document.getElementById("openCameraBtn");
+  const closeBtn = document.getElementById("closeCameraBtn");
+
+  readerEl.style.display = "block";
+  openBtn.style.display = "none";
+  closeBtn.style.display = "inline-block";
+
+  if (!html5QrCode) {
+    html5QrCode = new Html5Qrcode("reader");
+  }
+
+  try {
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 14, qrbox: 450 },
+      onScanSuccess
+    );
+    isCameraRunning = true;
+  } catch (err) {
+    // If camera fails, reset UI
+    readerEl.style.display = "none";
+    openBtn.style.display = "inline-block";
+    closeBtn.style.display = "none";
+    isCameraRunning = false;
+    alert("Unable to open camera: " + err);
+  }
+}
+
+async function closeCamera() {
+  if (!html5QrCode || !isCameraRunning) return;
+
+  const readerEl = document.getElementById("reader");
+  const openBtn = document.getElementById("openCameraBtn");
+  const closeBtn = document.getElementById("closeCameraBtn");
+
+  try {
+    await html5QrCode.stop();
+  } catch (err) {
+    // ignore stop errors
+  }
+
+  isCameraRunning = false;
+  readerEl.style.display = "none";
+  closeBtn.style.display = "none";
+  openBtn.style.display = "inline-block";
+}
+
+document.getElementById("openCameraBtn").addEventListener("click", openCamera);
+document.getElementById("closeCameraBtn").addEventListener("click", closeCamera);
 </script>
 
 </body>
 </html>
-
