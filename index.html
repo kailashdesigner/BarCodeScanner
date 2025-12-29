@@ -195,7 +195,13 @@
     try {
       await html5QrCode.start(
         { facingMode: "environment" },
-        { fps: 14, qrbox: Math.min(500, window.innerWidth * 0.9) },
+        {
+  fps: 14,
+  qrbox: function (viewfinderWidth, viewfinderHeight) {
+    const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.8;
+    return { width: size, height: size };
+  }
+},
         onScanSuccess
       );
       isCameraRunning = true;
@@ -234,5 +240,6 @@
 
 </body>
 </html>
+
 
 
