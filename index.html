@@ -27,39 +27,69 @@
       max-width: 100%;
       box-sizing: border-box;
     }
-    #sheetSelector {
+    .radio-group {
       margin: 20px auto;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       padding: 12px 20px;
-      font-size: 18px;
       border: 2px solid #007bff;
       border-radius: 8px;
       background-color: #f8f9fa;
       cursor: pointer;
-      min-width: 200px;
-      text-align: center;
-    }
-    #sheetSelector:focus {
-      outline: none;
-      border-color: #0056b3;
-      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-    }
-    .selector-label {
-      font-size: 16px;
+      transition: all 0.3s ease;
+      font-size: 18px;
       font-weight: bold;
-      margin-bottom: 8px;
-      color: #333;
+    }
+    .radio-option:hover {
+      background-color: #e9ecef;
+      border-color: #0056b3;
+    }
+    .radio-option input[type="radio"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: #007bff;
+    }
+    .radio-option input[type="radio"]:checked + label {
+      color: #007bff;
+    }
+    .radio-option.selected {
+      background-color: #007bff;
+      color: #ffffff;
+      border-color: #0056b3;
+    }
+    .radio-option.selected label {
+      color: #ffffff;
+    }
+    .radio-option label {
+      cursor: pointer;
+      margin: 0;
+      user-select: none;
     }
   </style>
 </head>
 <body>
 
-<h2>📦 Barcode Scanner</h2>
-<div class="selector-label">Select Platform:</div>
-<select id="sheetSelector">
-  <option value="Flipkart">Flipkart</option>
-  <option value="Meesho">Meesho</option>
-</select>
-<div id="reader"></div>
+
+    <div id="reader"></div>
+
+<div class="radio-group">
+  <div class="radio-option selected">
+    <input type="radio" id="flipkart" name="sheetSelector" value="Flipkart" checked>
+    <label for="flipkart">Flipkart</label>
+  </div>
+  <div class="radio-option">
+    <input type="radio" id="meesho" name="sheetSelector" value="Meesho">
+    <label for="meesho">Meesho</label>
+  </div>
+</div>
 <p id="result"></p>
 
 <script>
@@ -93,8 +123,8 @@ function playBeep() {
 
 function onScanSuccess(decodedText) {
   const resultEl = document.getElementById("result");
-  const sheetSelector = document.getElementById("sheetSelector");
-  const selectedSheet = sheetSelector.value;
+  const selectedRadio = document.querySelector('input[name="sheetSelector"]:checked');
+  const selectedSheet = selectedRadio ? selectedRadio.value : "Flipkart";
 
   if (scannedBarcodes.has(decodedText)) {
     resultEl.innerText = "Already scanned: " + decodedText;
@@ -125,10 +155,20 @@ function onScanSuccess(decodedText) {
   });
 }
 
+// Handle radio button selection visual feedback
+document.querySelectorAll('input[name="sheetSelector"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll('.radio-option').forEach(option => {
+      option.classList.remove('selected');
+    });
+    this.closest('.radio-option').classList.add('selected');
+  });
+});
+
 const html5QrCode = new Html5Qrcode("reader");
 html5QrCode.start(
   { facingMode: "environment" },
-  { fps: 10, qrbox: 450 },
+  { fps: 10, qrbox: 350 },
   onScanSuccess
 );
 </script>
