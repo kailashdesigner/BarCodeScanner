@@ -18,6 +18,40 @@
       max-width: 90%;
       margin: 16px auto;
       display: none; /* hidden until camera opened */
+      position: relative; /* For overlay positioning */
+    }
+
+    /* Scan box masking overlay - darkens top/bottom, leaves center clear */
+    #scanMask {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none; /* Allow camera interaction through overlay */
+      z-index: 1;
+      display: none; /* Hidden until camera opens */
+    }
+
+    #scanMask::before,
+    #scanMask::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent dark */
+    }
+
+    /* Top mask */
+    #scanMask::before {
+      top: 0;
+      height: 30%; /* Adjust to control center strip height */
+    }
+
+    /* Bottom mask */
+    #scanMask::after {
+      bottom: 0;
+      height: 30%; /* Adjust to control center strip height */
     }
 
     #result {
@@ -119,7 +153,10 @@
   </label>
 </div>
 
-<div id="reader"></div>
+<div id="reader">
+  <!-- Visual masking overlay for center horizontal scan strip -->
+  <div id="scanMask"></div>
+</div>
 <p id="result"></p>
 
 <script>
@@ -165,7 +202,89 @@
     return selected ? selected.value : "Flipkart";
   }
 
-  function onScanSuccess(decodedText) {
+  /**
+   * Check if scanned result is a 1D barcode format
+   * @param {string} decodedText - The decoded text
+   * @param {Object} decodedResult - The full decoded result object from html5-qrcode (optional)
+   * @returns {boolean} True if 1D format, false if 2D format
+   */
+  function is1DBarcode(decodedText, decodedResult) {
+    // List of 2D formats to reject
+    const twoDFormats = [
+      'QR_CODE',
+      'DATAMATRIX',
+      'PDF_417',
+      'AZTEC',
+      'MAXICODE'
+    ];
+
+    // List of allowed 1D formats
+    const oneDFormats = [
+      'CODE_128',
+      'CODE_39',
+      'EAN_13',
+      'EAN_8',
+      'UPC_A',
+      'UPC_E',
+      'ITF',
+      'CODABAR',
+      'RSS_14',
+      'RSS_EXPANDED'
+    ];
+
+    // Try to get format from decodedResult object (html5-qrcode v2+)
+    if (decodedResult) {
+      // Check result.result.format or result.format (library version dependent)
+      const format = decodedResult.result?.format || decodedResult.format;
+      if (format) {
+        const formatUpper = format.toUpperCase();
+        // Reject if it's a 2D format
+        if (twoDFormats.some(f => formatUpper.includes(f))) {
+          return false;
+        }
+        // Accept if it's a known 1D format
+        if (oneDFormats.some(f => formatUpper.includes(f))) {
+          return true;
+        }
+      }
+    }
+
+    // Fallback: Use heuristics if format metadata not available
+    // 1D barcodes are typically shorter and contain only digits/alphanumeric
+    // QR codes often contain URLs, JSON, or longer structured data
+    const textLength = decodedText.length;
+    
+    // Very long strings (>100 chars) are likely 2D codes (QR metadata)
+    if (textLength > 100) {
+      return false;
+    }
+
+    // Check for common QR code patterns
+    if (decodedText.startsWith('http://') || 
+        decodedText.startsWith('https://') ||
+        decodedText.startsWith('data:') ||
+        decodedText.includes('{') && decodedText.includes('}') ||
+        decodedText.includes('[') && decodedText.includes(']')) {
+      return false;
+    }
+
+    // Default: assume 1D if format cannot be determined
+    // This is safer than rejecting unknown formats
+    return true;
+  }
+
+  /**
+   * Enhanced scan success handler with 1D format filtering
+   * @param {string} decodedText - The decoded barcode text
+   * @param {Object} decodedResult - Full result object from html5-qrcode (optional)
+   */
+  function onScanSuccess(decodedText, decodedResult) {
+    // Filter out 2D codes (QR, DataMatrix, PDF417) - ignore silently
+    if (!is1DBarcode(decodedText, decodedResult)) {
+      // Silently ignore 2D codes - no beep, no vibration, no UI feedback
+      return;
+    }
+
     const resultEl = document.getElementById("result");
 
     // duplicate detection (unchanged)
@@ -216,18 +335,49 @@
     }
 
     try {
+      // Configure to scan only 1D barcode formats
+      // Horizontal scan box - wider than tall to focus on 1D barcodes
+      const qrboxFunction = function (viewfinderWidth, viewfinderHeight) {
+        // Create a horizontal strip: 80% width, 25% height (centered)
+        const width = viewfinderWidth * 0.8;
+        const height = viewfinderHeight * 0.25;
+        return { width: width, height: height };
+      };
+
+      const config = {
+        fps: 14,
+        qrbox: qrboxFunction
+      };
+
+      // Try to limit formats to 1D barcodes only (if library supports it)
+      // This is optional - is1DBarcode() function will filter anyway
+      try {
+        if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+          config.formatsToSupport = [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.CODABAR
+          ];
+        }
+      } catch (e) {
+        // Format filtering not supported in this library version
+        // is1DBarcode() will handle filtering instead
+      }
+
       await html5QrCode.start(
         { facingMode: "environment" },
-        {
-  fps: 14,
-  qrbox: function (viewfinderWidth, viewfinderHeight) {
-    const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.5;
-    return { width: size, height: size };
-  }
-},
+        config,
         onScanSuccess
       );
       isCameraRunning = true;
+
+      // Show scan mask overlay
+      document.getElementById("scanMask").style.display = "block";
 
       // Get video track and check torch support after camera starts
       // Small delay to ensure track is available
@@ -250,6 +400,7 @@
       readerEl.style.display = "none";
       openBtn.style.display = "inline-block";
       closeBtn.style.display = "none";
+      document.getElementById("scanMask").style.display = "none"; // Hide overlay
       isCameraRunning = false;
       alert("Unable to open camera: " + err);
     }
@@ -277,6 +428,7 @@
     readerEl.style.display = "none";
     closeBtn.style.display = "none";
     flashlightBtn.style.display = "none";
+    document.getElementById("scanMask").style.display = "none"; // Hide overlay
     openBtn.style.display = "inline-block";
   }
 
