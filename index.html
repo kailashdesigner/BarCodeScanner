@@ -63,6 +63,22 @@
       display: none; /* hidden until camera is open */
     }
 
+    #flashlightBtn {
+      padding: 10px 18px;
+      margin: 4px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background-color: #ffc107;
+      color: #000000;
+      display: none; /* hidden until camera is open */
+    }
+
+    #flashlightBtn:active {
+      background-color: #ff9800;
+    }
+
     /* Mobile-first sheet selector */
     #sheetSelector {
       margin-top: 10px;
@@ -87,6 +103,7 @@
 <div id="controls">
   <button id="openCameraBtn">Open Camera</button>
   <button id="closeCameraBtn">Close Camera</button>
+  <button id="flashlightBtn">🔦 Flash On</button>
 </div>
 
 <!-- NEW: simple target-sheet selector -->
@@ -115,6 +132,8 @@
   // Html5Qrcode instance (created on demand)
   let html5QrCode = null;
   let isCameraRunning = false;
+  let activeVideoTrack = null; // Track for torch control
+  let isTorchOn = false; // Track torch state
 
   // Simple beep using Web Audio API so no external file is needed
   function playBeep() {
@@ -154,6 +173,7 @@
       resultEl.innerText = "Already scanned: " + decodedText;
       resultEl.style.backgroundColor = "#dc3545"; // red for duplicate
       playBeep();
+      vibrate(300); // longer vibration
       return;
     }
 
@@ -163,7 +183,7 @@
     resultEl.style.backgroundColor = "#28a745"; // green for new scan
 
     playBeep();
-
+    vibrate(120); // short vibration
     // Minimal payload: barcode + selected sheet name only
     const payload = {
       barcode: decodedText,
@@ -208,6 +228,23 @@
         onScanSuccess
       );
       isCameraRunning = true;
+
+      // Get video track and check torch support after camera starts
+      // Small delay to ensure track is available
+      setTimeout(() => {
+        activeVideoTrack = getVideoTrack();
+        const flashlightBtn = document.getElementById("flashlightBtn");
+        if (activeVideoTrack) {
+          const capabilities = activeVideoTrack.getCapabilities();
+          if (capabilities && capabilities.torch) {
+            flashlightBtn.style.display = "inline-block";
+          } else {
+            flashlightBtn.style.display = "none";
+          }
+        } else {
+          flashlightBtn.style.display = "none";
+        }
+      }, 500);
     } catch (err) {
       // If camera fails, reset UI
       readerEl.style.display = "none";
@@ -224,6 +261,10 @@
     const readerEl = document.getElementById("reader");
     const openBtn = document.getElementById("openCameraBtn");
     const closeBtn = document.getElementById("closeCameraBtn");
+    const flashlightBtn = document.getElementById("flashlightBtn");
+
+    // Turn off torch before closing camera
+    await turnOffTorch();
 
     try {
       await html5QrCode.stop();
@@ -232,19 +273,129 @@
     }
 
     isCameraRunning = false;
+    activeVideoTrack = null;
     readerEl.style.display = "none";
     closeBtn.style.display = "none";
+    flashlightBtn.style.display = "none";
     openBtn.style.display = "inline-block";
   }
 
   document.getElementById("openCameraBtn").addEventListener("click", openCamera);
   document.getElementById("closeCameraBtn").addEventListener("click", closeCamera);
+  document.getElementById("flashlightBtn").addEventListener("click", toggleFlashlight);
+
+  /**
+   * Vibration helper - gracefully handles unsupported devices
+   * @param {number} ms - Vibration duration in milliseconds
+   */
+  function vibrate(ms = 100) {
+    try {
+      if ("vibrate" in navigator) {
+        navigator.vibrate(ms);
+      }
+    } catch (e) {
+      // Silently fail if vibration is unavailable
+    }
+  }
+
+  /**
+   * Get the active video track from the camera stream
+   * @returns {MediaStreamTrack|null} The video track or null if not available
+   */
+  function getVideoTrack() {
+    try {
+      // html5-qrcode uses getRunningTrack() to access the stream
+      if (html5QrCode && typeof html5QrCode.getRunningTrack === 'function') {
+        const track = html5QrCode.getRunningTrack();
+        if (track && track.kind === 'video') {
+          return track;
+        }
+      }
+      // Fallback: try to get from the reader element's video
+      const readerEl = document.getElementById("reader");
+      const video = readerEl.querySelector("video");
+      if (video && video.srcObject) {
+        const stream = video.srcObject;
+        const tracks = stream.getVideoTracks();
+        if (tracks.length > 0) {
+          return tracks[0];
+        }
+      }
+    } catch (e) {
+      // Silently fail if track cannot be accessed
+    }
+    return null;
+  }
+
+  /**
+   * Toggle camera torch/flashlight
+   * Only works on devices that support torch and when rear camera is active
+   */
+  async function toggleFlashlight() {
+    if (!isCameraRunning) {
+      return;
+    }
+
+    const track = getVideoTrack();
+    if (!track) {
+      return;
+    }
+
+    // Check if torch is supported
+    const capabilities = track.getCapabilities();
+    if (!capabilities || !capabilities.torch) {
+      // Device doesn't support torch - hide button
+      document.getElementById("flashlightBtn").style.display = "none";
+      return;
+    }
+
+    try {
+      const newState = !isTorchOn;
+      await track.applyConstraints({
+        advanced: [{ torch: newState }]
+      });
+      isTorchOn = newState;
+      updateFlashlightButton();
+    } catch (err) {
+      // Torch may not be available or failed to toggle
+      // Hide button if torch is not supported
+      if (err.name === 'NotSupportedError' || err.name === 'NotReadableError') {
+        document.getElementById("flashlightBtn").style.display = "none";
+      }
+    }
+  }
+
+  /**
+   * Update flashlight button text and state
+   */
+  function updateFlashlightButton() {
+    const btn = document.getElementById("flashlightBtn");
+    if (btn) {
+      btn.innerText = isTorchOn ? "💡 Flash Off" : "🔦 Flash On";
+    }
+  }
+
+  /**
+   * Turn off torch if it's on (called when camera closes)
+   */
+  async function turnOffTorch() {
+    if (!isTorchOn || !activeVideoTrack) {
+      return;
+    }
+
+    try {
+      await activeVideoTrack.applyConstraints({
+        advanced: [{ torch: false }]
+      });
+      isTorchOn = false;
+      activeVideoTrack = null;
+    } catch (e) {
+      // Ignore errors when turning off
+    }
+  }
+
 </script>
 
 </body>
 </html>
-
-
-
-
 
