@@ -165,53 +165,7 @@
     return selected ? selected.value : "Flipkart";
   }
 
-  /**
-   * Check if a barcode format is 2D (should be ignored)
-   * @param {string} format - The barcode format from html5-qrcode
-   * @returns {boolean} true if format is 2D and should be ignored
-   */
-  function is2DFormat(format) {
-    if (!format) return false; // If format is unknown, allow it (fallback behavior)
-    
-    const formatUpper = format.toUpperCase();
-    const twoDFormats = ['QR_CODE', 'DATA_MATRIX', 'PDF_417'];
-    return twoDFormats.includes(formatUpper);
-  }
-
-  /**
-   * Extract format from decoded result (handles both string and object formats)
-   * @param {string|object} decodedResult - The result from html5-qrcode
-   * @returns {object} { text: string, format: string|null }
-   */
-  function extractDecodedInfo(decodedResult) {
-    // If it's just a string (old API), return it with no format
-    if (typeof decodedResult === 'string') {
-      return { text: decodedResult, format: null };
-    }
-    
-    // If it's an object (new API with metadata)
-    if (typeof decodedResult === 'object' && decodedResult !== null) {
-      const text = decodedResult.decodedText || decodedResult.text || '';
-      // Format can be in different places depending on library version
-      const format = decodedResult.result?.format?.formatName || 
-                     decodedResult.result?.format ||
-                     decodedResult.format ||
-                     null;
-      return { text, format };
-    }
-    
-    return { text: '', format: null };
-  }
-
-  function onScanSuccess(decodedResult) {
-    // Extract text and format from the decoded result
-    const { text: decodedText, format } = extractDecodedInfo(decodedResult);
-    
-    // Silently ignore 2D codes (QR_CODE, DATA_MATRIX, PDF_417)
-    if (is2DFormat(format)) {
-      return; // Do nothing - no beep, no vibration, no save, no error
-    }
-
+  function onScanSuccess(decodedText) {
     const resultEl = document.getElementById("result");
 
     // duplicate detection (unchanged)
@@ -262,46 +216,15 @@
     }
 
     try {
-      // PART 1: Configure formatsToSupport - ONLY 1D barcode formats
-      // This tells html5-qrcode to scan ONLY these formats, ignoring 2D codes at the library level
-      // Use enum if available, otherwise fall back to string values (for CDN compatibility)
-      const Formats = typeof Html5QrcodeSupportedFormats !== 'undefined' 
-        ? Html5QrcodeSupportedFormats 
-        : null;
-      
-      const formatsToSupport = Formats ? [
-        Formats.CODE_128,
-        Formats.CODE_39,
-        Formats.EAN_13,
-        Formats.EAN_8,
-        Formats.UPC_A,
-        Formats.ITF
-      ] : [
-        // Fallback to string values if enum not available
-        "CODE_128",
-        "CODE_39",
-        "EAN_13",
-        "EAN_8",
-        "UPC_A",
-        "ITF"
-      ];
-
       await html5QrCode.start(
         { facingMode: "environment" },
         {
-          fps: 14,
-          // PART 2: Horizontal scan box - wide and short to favor 1D barcodes
-          // This creates a horizontal scanning region optimized for tracking barcodes
-          qrbox: function (viewfinderWidth, viewfinderHeight) {
-            // Use 85% of width for wide horizontal scan area
-            const width = Math.min(viewfinderWidth * 0.85, viewfinderWidth - 20);
-            // Use only 20% of height for short vertical space
-            const height = Math.min(viewfinderHeight * 0.20, 120);
-            return { width: width, height: height };
-          },
-          // PART 1: Restrict scanning to 1D formats only
-          formatsToSupport: formatsToSupport
-        },
+  fps: 14,
+  qrbox: function (viewfinderWidth, viewfinderHeight) {
+    const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.5;
+    return { width: size, height: size };
+  }
+},
         onScanSuccess
       );
       isCameraRunning = true;
