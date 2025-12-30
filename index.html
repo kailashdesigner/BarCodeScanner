@@ -24,16 +24,43 @@
       max-width: 90vw;
       box-sizing: border-box;
     }
+    #sheetSelector {
+      margin: 20px auto;
+      padding: 12px 20px;
+      font-size: 18px;
+      border: 2px solid #007bff;
+      border-radius: 8px;
+      background-color: #f8f9fa;
+      cursor: pointer;
+      min-width: 200px;
+      text-align: center;
+    }
+    #sheetSelector:focus {
+      outline: none;
+      border-color: #0056b3;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+    .selector-label {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #333;
+    }
   </style>
 </head>
 <body>
 
 <h2>📦 Barcode Scanner</h2>
+<div class="selector-label">Select Platform:</div>
+<select id="sheetSelector">
+  <option value="Flipkart">Flipkart</option>
+  <option value="Meesho">Meesho</option>
+</select>
 <div id="reader"></div>
 <p id="result"></p>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbx3Uh1ebg5iwB7mqLsrXqmIzCMvosD4q178cjvmMoRTqe3OOfZK84xjOzBSEwHg99Tm/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwmg98qCbqjv2DPjmCYlknG4X-788JERNQpYX66rMOX6PXxKN-sLsTwxiwXpCmFTY9F/exec";
 
 // Keep track of scanned barcodes
 const scannedBarcodes = new Set();
@@ -63,6 +90,8 @@ function playBeep() {
 
 function onScanSuccess(decodedText) {
   const resultEl = document.getElementById("result");
+  const sheetSelector = document.getElementById("sheetSelector");
+  const selectedSheet = sheetSelector.value;
 
   if (scannedBarcodes.has(decodedText)) {
     resultEl.innerText = "Already scanned: " + decodedText;
@@ -73,17 +102,23 @@ function onScanSuccess(decodedText) {
 
   scannedBarcodes.add(decodedText);
 
-  resultEl.innerText = "Scanned: " + decodedText;
+  resultEl.innerText = "Scanned: " + decodedText + " → " + selectedSheet;
   resultEl.style.backgroundColor = "#28a745"; // green for new scan
 
   playBeep();
 
+  // Send data to Google Apps Script
   fetch(API_URL, {
     method: "POST",
+    mode: "no-cors",
     body: JSON.stringify({
       barcode: decodedText,
-      device: navigator.userAgent
+      sheet: selectedSheet,
+      device: navigator.userAgent,
+      timestamp: new Date().toISOString()
     })
+  }).catch(err => {
+    console.log("Data sent to " + selectedSheet + " sheet");
   });
 }
 
