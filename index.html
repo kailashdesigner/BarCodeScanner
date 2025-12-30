@@ -335,8 +335,7 @@
     }
 
     try {
-      // Configure to scan only 1D barcode formats
-      // Horizontal scan box - wider than tall to focus on 1D barcodes
+      // Configure horizontal scan box - wider than tall to focus on 1D barcodes
       const qrboxFunction = function (viewfinderWidth, viewfinderHeight) {
         // Create a horizontal strip: 80% width, 25% height (centered)
         const width = viewfinderWidth * 0.8;
@@ -349,25 +348,8 @@
         qrbox: qrboxFunction
       };
 
-      // Try to limit formats to 1D barcodes only (if library supports it)
-      // This is optional - is1DBarcode() function will filter anyway
-      try {
-        if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
-          config.formatsToSupport = [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.CODABAR
-          ];
-        }
-      } catch (e) {
-        // Format filtering not supported in this library version
-        // is1DBarcode() will handle filtering instead
-      }
+      // Note: Format filtering is handled by is1DBarcode() function in onScanSuccess
+      // This allows the library to scan all formats, then we filter in JavaScript
 
       await html5QrCode.start(
         { facingMode: "environment" },
@@ -402,7 +384,8 @@
       closeBtn.style.display = "none";
       document.getElementById("scanMask").style.display = "none"; // Hide overlay
       isCameraRunning = false;
-      alert("Unable to open camera: " + err);
+      console.error("Camera error:", err);
+      alert("Unable to open camera: " + (err.message || err));
     }
   }
 
