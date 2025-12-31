@@ -2,130 +2,169 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Horizontal Barcode Scanner</title>
+  <title>Barcode Scanner</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      text-align: center;
+    * {
+      box-sizing: border-box;
     }
 
-    h2 {
-      margin: 16px 0;
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+      background: #f4f6f8;
+      color: #333;
+    }
+
+    .app {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .header h2 {
+      margin: 8px 0 4px;
+      font-size: 22px;
+    }
+
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .scanner-card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
     }
 
     #reader {
       width: 100%;
-      height: 70vh;
+      height: 65vh;
       background: #000;
-    }
-
-    #hint {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 8px;
+      border-radius: 12px;
+      overflow: hidden;
     }
 
     #result {
-      margin: 16px;
+      margin-top: 14px;
       padding: 14px;
-      font-size: 18px;
-      font-weight: bold;
-      background: #28a745;
-      color: #fff;
-      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      text-align: center;
       display: none;
       word-break: break-all;
+    }
+
+    .success {
+      background: #28a745;
+      color: #fff;
+    }
+
+    .error {
+      background: #dc3545;
+      color: #fff;
+    }
+
+    @media (min-width: 768px) {
+      #reader {
+        height: 420px;
+      }
     }
   </style>
 </head>
 <body>
 
-  <h2>📦 Horizontal Bar code Scanner</h2>
-  <div id="hint">Scan the long horizontal barcode only</div>
+<div class="app">
 
-  <div id="reader"></div>
+  <div class="header">
+    <h2>📦 Barcode Scanner</h2>
+    <p>Scan the long horizontal barcode</p>
+  </div>
 
-  <div id="result"></div>
+  <div class="scanner-card">
+    <div id="reader"></div>
+    <div id="result"></div>
+  </div>
 
-  <script>
-    const scannedSet = new Set();
+</div>
 
-    const API_URL = "https://script.google.com/macros/s/AKfycbzkh97lv75JjFuqEalsJ4zonNok9jLPl08hopcTwJVZPoS4bYHnoORki3gT7X_7A5q1/exec";
+<script>
+  const resultEl = document.getElementById("result");
+  const scannedSet = new Set();
 
-    const resultEl = document.getElementById("result");
+  function onScanSuccess(decodedText, decodedResult) {
+    // Ignore 2D formats (from Step 2)
+    const format =
+      decodedResult?.result?.format?.formatName || "";
 
-    function onScanSuccess(decodedText, decodedResult) {
-  // Ignore 2D formats (from Step 2)
-  const format =
-    decodedResult?.result?.format?.formatName || "";
+    const blockedFormats = ["QR_CODE", "DATA_MATRIX", "PDF_417"];
+    if (blockedFormats.includes(format)) {
+      return;
+    }
 
-  const blockedFormats = ["QR_CODE", "DATA_MATRIX", "PDF_417"];
-  if (blockedFormats.includes(format)) {
-    return;
-  }
+    // Duplicate protection (Step 4)
+    if (scannedSet.has(decodedText)) {
+      resultEl.style.display = "block";
+      resultEl.className = "error";
+      resultEl.textContent = "Already scanned: " + decodedText;
+      return;
+    }
 
-  // DUPLICATE CHECK (Step 4)
-  if (scannedSet.has(decodedText)) {
+    scannedSet.add(decodedText);
+
+    // Success UI
     resultEl.style.display = "block";
-    resultEl.style.background = "#dc3545"; // red
-    resultEl.textContent = "Already scanned: " + decodedText;
-    return;
+    resultEl.className = "success";
+    resultEl.textContent = "Scanned: " + decodedText;
+
+    // Save to Google Sheet (Step 3)
+    fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        trackingId: decodedText
+      })
+    });
   }
 
-  scannedSet.add(decodedText);
+  const html5QrCode = new Html5Qrcode("reader");
 
-  // Normal success
-  resultEl.style.display = "block";
-  resultEl.style.background = "#28a745"; // green
-  resultEl.textContent = "Scanned: " + decodedText;
-
-  // Save to Google Sheet
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      trackingId: decodedText
-    })
+  html5QrCode.start(
+    { facingMode: "environment" },
+    {
+      fps: 12,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.ITF
+      ],
+      qrbox: function (w, h) {
+        return {
+          width: w * 0.9,
+          height: h * 0.25
+        };
+      }
+    },
+    onScanSuccess
+  ).catch(err => {
+    alert("Camera error: " + err);
   });
-}
-
-
-    const html5QrCode = new Html5Qrcode("reader");
-
-    html5QrCode.start(
-      { facingMode: "environment" },
-      {
-        fps: 12,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.ITF
-        ],
-        qrbox: function (w, h) {
-          return {
-            width: w * 0.9,    // wide
-            height: h * 0.25   // short (horizontal)
-          };
-        }
-      },
-      onScanSuccess
-    ).catch(err => {
-      alert("Camera error: " + err);
-    });
-  </script>
+</script>
 
 </body>
 </html>
-
-
-
-
