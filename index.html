@@ -2,12 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Barcode Scanner</title>
-
+  <title>Horizontal Barcode Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <script src="https://unpkg.com/html5-qrcode"></script>
-
   <style>
     * {
       box-sizing: border-box;
@@ -86,8 +83,7 @@
   </style>
 </head>
 <body>
-
-<div class="app">
+ <div class="app">
 
   <div class="header">
     <h2>📦 Barcode Scanner</h2>
@@ -100,71 +96,62 @@
   </div>
 
 </div>
-
-<script>
-  const resultEl = document.getElementById("result");
-  const scannedSet = new Set();
-
-  function onScanSuccess(decodedText, decodedResult) {
-    // Ignore 2D formats (from Step 2)
-    const format =
-      decodedResult?.result?.format?.formatName || "";
-
-    const blockedFormats = ["QR_CODE", "DATA_MATRIX", "PDF_417"];
-    if (blockedFormats.includes(format)) {
-      return;
-    }
-
-    // Duplicate protection (Step 4)
-    if (scannedSet.has(decodedText)) {
-      resultEl.style.display = "block";
-      resultEl.className = "error";
-      resultEl.textContent = "Already scanned: " + decodedText;
-      return;
-    }
-
-    scannedSet.add(decodedText);
-
-    // Success UI
-    resultEl.style.display = "block";
-    resultEl.className = "success";
-    resultEl.textContent = "Scanned: " + decodedText;
-
-    // Save to Google Sheet (Step 3)
-    fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        trackingId: decodedText
-      })
-    });
+  <script>
+    const scannedSet = new Set();
+    const API_URL = "https://script.google.com/macros/s/AKfycbzkh97lv75JjFuqEalsJ4zonNok9jLPl08hopcTwJVZPoS4bYHnoORki3gT7X_7A5q1/exec";
+    const resultEl = document.getElementById("result");
+    function onScanSuccess(decodedText, decodedResult) {
+  // Ignore 2D formats (from Step 2)
+  const format =
+    decodedResult?.result?.format?.formatName || "";
+  const blockedFormats = ["QR_CODE", "DATA_MATRIX", "PDF_417"];
+  if (blockedFormats.includes(format)) {
+    return;
   }
-
-  const html5QrCode = new Html5Qrcode("reader");
-
-  html5QrCode.start(
-    { facingMode: "environment" },
-    {
-      fps: 12,
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.ITF
-      ],
-      qrbox: function (w, h) {
-        return {
-          width: w * 0.9,
-          height: h * 0.25
-        };
-      }
-    },
-    onScanSuccess
-  ).catch(err => {
-    alert("Camera error: " + err);
+  // DUPLICATE CHECK (Step 4)
+  if (scannedSet.has(decodedText)) {
+    resultEl.style.display = "block";
+    resultEl.style.background = "#DC3545"; // red
+    resultEl.textContent = "Already scanned: " + decodedText;
+    return;
+  }
+  scannedSet.add(decodedText);
+  // Normal success
+  resultEl.style.display = "block";
+  resultEl.style.background = "#28A745"; // green
+  resultEl.textContent = "Scanned: " + decodedText;
+  // Save to Google Sheet
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      trackingId: decodedText
+    })
   });
-</script>
-
+}
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" },
+      {
+        fps: 12,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+        qrbox: function (w, h) {
+          return {
+            width: w * 0.9,    // wide
+            height: h * 0.25   // short (horizontal)
+          };
+        }
+      },
+      onScanSuccess
+    ).catch(err => {
+      alert("Camera error: " + err);
+    });
+  </script>
 </body>
 </html>
