@@ -2,12 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Base Barcode Scanner</title>
+  <title>Horizontal Barcode Scanner</title>
 
-  <!-- IMPORTANT: viewport for mobile -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- html5-qrcode library -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -25,8 +23,13 @@
     #reader {
       width: 100%;
       height: 70vh;
-      margin: auto;
       background: #000;
+    }
+
+    #hint {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
     }
 
     #result {
@@ -44,7 +47,8 @@
 </head>
 <body>
 
-  <h2>📦 Base Barcode Scanner</h2>
+  <h2>📦 Horizontal Barcode Scanner</h2>
+  <div id="hint">Scan the long horizontal barcode only</div>
 
   <div id="reader"></div>
 
@@ -53,7 +57,16 @@
   <script>
     const resultEl = document.getElementById("result");
 
-    function onScanSuccess(decodedText) {
+    function onScanSuccess(decodedText, decodedResult) {
+      // Safety check: ignore 2D formats if ever detected
+      const format =
+        decodedResult?.result?.format?.formatName || "";
+
+      const blockedFormats = ["QR_CODE", "DATA_MATRIX", "PDF_417"];
+      if (blockedFormats.includes(format)) {
+        return; // silently ignore
+      }
+
       resultEl.style.display = "block";
       resultEl.textContent = "Scanned: " + decodedText;
     }
@@ -63,8 +76,21 @@
     html5QrCode.start(
       { facingMode: "environment" },
       {
-        fps: 10,
-       
+        fps: 12,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.ITF
+        ],
+        qrbox: function (w, h) {
+          return {
+            width: w * 0.9,    // wide
+            height: h * 0.25   // short (horizontal)
+          };
+        }
       },
       onScanSuccess
     ).catch(err => {
@@ -74,4 +100,3 @@
 
 </body>
 </html>
-
